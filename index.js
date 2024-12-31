@@ -8,11 +8,15 @@ var app = express();
 // enable CORS (https://en.wikipedia.org/wiki/Cross-origin_resource_sharing)
 // so that your API is remotely testable by FCC 
 var cors = require('cors');
-const { type } = require('express/lib/response');
+const fs = require("fs");
+const url = require('valid-url');
+
 app.use(cors({ optionsSuccessStatus: 200 }));  // some legacy browsers choke on 204
 
 // http://expressjs.com/en/starter/static-files.html
 app.use(express.static('public'));
+app.use(express.urlencoded({ extended: true }))
+
 
 app.use('/', (req, res, next) => {
   console.log(`${req.method} ${req.path} - ${req.ip}`);
@@ -22,34 +26,40 @@ app.use('/', (req, res, next) => {
 
 // http://expressjs.com/en/starter/basic-routing.html
 
-app.get("/api/", function (req, res) {
-  res.json({ "unix": new Date().getTime(), "utc": new Date().toUTCString() });
+
+app.post("/api/shorturl", (req, res) => {
+
+  if (!url.isHttpUri(req.body.url)) return res.json({ error: 'invalid url' });
+
+  fs.readFile("url.json", (err, data) => {
+
+    if (err) return;
+
+    const jsonData = JSON.parse(data);
+
+    jsonData.push({ original_url: req.body.url, short_url: jsonData.length });
+
+    fs.writeFile("url.json", JSON.stringify(jsonData, null, 2), (err) => {
+      if (err) return;
+
+      return res.json({ original_url: req.body.url, short_url: jsonData.length - 1 });
+    });
+
+  });
 });
 
 
-// app.get("/api/:date?", (req, res) => {
+app.get("/api/shorturl/:shorturl", (req, res) => {
 
-//   const data = /^\d+$/.test(req.params.date) ? parseInt(req.params.date) : req.params.date ?? Date.now();
+  fs.readFile("url.json", (err, data) => {
+    if (err) return;
 
-//   const date = new Date(data);
+    const jsonData = JSON.parse(data);
 
-//   if (date == "Invalid Date") res.json({ error: "Invalid Date" });
+    return res.redirect(jsonData[req.params.shorturl]['original_url']);
+  });
 
-//   res.json({ unix: parseInt(date.getTime()), utc: date.toUTCString() });
-
-
-// })
-
-
-app.get("/api/whoami", (req, res) => {
-
-  res.json({
-    ipaddress: req.ip,
-    language: req.headers['accept-language'],
-    software: req.headers['user-agent']
-  })
 })
-
 
 
 // Listen on port set in environment variable or default to 3000
